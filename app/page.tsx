@@ -3,6 +3,8 @@ import { CreateTaskButton } from "@/components/create-task-button";
 import { ModeToggle } from "@/components/ModeToggle";
 import { TaskActions } from "@/components/task-actions";
 import { AttendanceToggle } from "@/components/attendance-toggle";
+import { BatchAttendanceButton } from "@/components/batch-attendance-button";
+import { AttendanceTableActions } from "@/components/attendance-table-actions";
 import {
   Table,
   TableBody,
@@ -36,8 +38,13 @@ export default async function Home() {
         </div>
         <div className="flex items-center gap-2">
           <ModeToggle />
+          <BatchAttendanceButton />
           <CreateTaskButton />
         </div>
+      </div>
+
+      <div className="flex justify-end mb-3">
+        <AttendanceTableActions records={records} />
       </div>
 
       <div className="rounded-md border">
@@ -59,8 +66,8 @@ export default async function Home() {
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((record) => (
-                <TableRow key={record.id}>
+              records.map((record, index) => (
+                <TableRow key={`${record.id}-${index}`}>
                   <TableCell className="font-medium">{record.student_registration}</TableCell>
                   <TableCell>{record.subject}</TableCell>
                   <TableCell>
