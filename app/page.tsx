@@ -1,18 +1,8 @@
 import { Attendance } from "@/types/Attendance";
 import { CreateTaskButton } from "@/components/create-task-button";
 import { ModeToggle } from "@/components/ModeToggle";
-import { TaskActions } from "@/components/task-actions";
-import { AttendanceToggle } from "@/components/attendance-toggle";
 import { BatchAttendanceButton } from "@/components/batch-attendance-button";
-import { AttendanceTableActions } from "@/components/attendance-table-actions";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AttendanceTable } from "@/components/attendance-table";
 
 const API = "https://69967dd07d178643657454ec.mockapi.io/api/v1/attendance";
 
@@ -43,54 +33,7 @@ export default async function Home() {
         </div>
       </div>
 
-      <div className="flex justify-end mb-3">
-        <AttendanceTableActions records={records} />
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Student Reg. No.</TableHead>
-              <TableHead>Subject</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Attendance</TableHead>
-              <TableHead className="text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                  No attendance records found. Add one to get started.
-                </TableCell>
-              </TableRow>
-            ) : (
-              records.map((record, index) => (
-                <TableRow key={`${record.id}-${index}`}>
-                  <TableCell className="font-medium">{record.student_registration}</TableCell>
-                  <TableCell>{record.subject}</TableCell>
-                  <TableCell>
-                    {record.date
-                      ? new Date(record.date).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <AttendanceToggle record={record} />
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <TaskActions record={record} />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <AttendanceTable records={records} />
     </main>
   );
 }
