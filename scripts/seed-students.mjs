@@ -43,6 +43,11 @@ function generateStudents() {
     students.push({ registration: `D/BCE/23/${pad(i)}`, batch: "BCE" });
   }
 
+  // Cadets
+  students.push({ registration: "D/BSE/23/6597", batch: "BSE" }); // BSE cadet
+  students.push({ registration: "D/BCS/23/6730", batch: "BCS" }); // BCS cadet 1
+  students.push({ registration: "D/BCS/23/6731", batch: "BCS" }); // BCS cadet 2
+
   return students;
 }
 
@@ -83,13 +88,22 @@ async function checkEndpoint() {
 async function clearExisting(existing) {
   if (existing.length === 0) return;
   console.log(`Deleting ${existing.length} existing record(s)…`);
-  await Promise.all(
-    existing.map((s) =>
-      fetch(`${STUDENTS_API}/${s.id}`, { method: "DELETE" }).catch((e) =>
-        console.warn(`Failed to delete ${s.id}:`, e)
+  const BATCH_SIZE = 3;
+  for (let i = 0; i < existing.length; i += BATCH_SIZE) {
+    const batch = existing.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map((s) =>
+        fetch(`${STUDENTS_API}/${s.id}`, { method: "DELETE" }).catch((e) =>
+          console.warn(`Failed to delete ${s.id}:`, e)
+        )
       )
-    )
-  );
+    );
+    if (i + BATCH_SIZE < existing.length) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+  // Extra gap before seeding
+  await new Promise((r) => setTimeout(r, 2000));
 }
 
 async function seed() {
@@ -98,13 +112,13 @@ async function seed() {
   await clearExisting(existing);
 
   const students = generateStudents();
-  console.log(`Seeding ${students.length} students (BSE×17 + BCS×25 + BCE×25)…`);
+  console.log(`Seeding ${students.length} students (BSE×17 + BCS×25 + BCE×25 + 3 cadets)…`);
 
   let success = 0;
   let failed = 0;
 
   // mockapi has rate limits — seed in small batches to avoid 429s
-  const BATCH_SIZE = 5;
+  const BATCH_SIZE = 3;
   for (let i = 0; i < students.length; i += BATCH_SIZE) {
     const batch = students.slice(i, i + BATCH_SIZE);
     await Promise.all(
@@ -129,7 +143,7 @@ async function seed() {
     );
     // Small delay between batches to respect rate limits
     if (i + BATCH_SIZE < students.length) {
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
 

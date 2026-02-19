@@ -35,6 +35,8 @@ export function CreateTaskButton() {
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<Batch>("BSE");
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [manualEntry, setManualEntry] = useState(false);
+  const [manualReg, setManualReg] = useState("");
 
   const [present, setPresent] = useState(true);
   const [date, setDate] = useState(getToday());
@@ -46,6 +48,8 @@ export function CreateTaskButton() {
   useEffect(() => {
     if (!open) return;
     setDate(getToday());
+    setManualEntry(false);
+    setManualReg("");
     setIsFetching(true);
     Promise.all([fetch(SUBJECTS_API), fetch(STUDENTS_API)])
       .then(([sr, str]) => Promise.all([sr.json(), str.json()]))
@@ -72,8 +76,9 @@ export function CreateTaskButton() {
   }, [selectedBatch, students]);
 
   const batchStudents = students.filter((s) => s.batch === selectedBatch);
-  const resolvedStudentReg =
-    students.find((s) => s.id === selectedStudentId)?.registration ?? "";
+  const resolvedStudentReg = manualEntry
+    ? manualReg.trim()
+    : students.find((s) => s.id === selectedStudentId)?.registration ?? "";
 
   const resolvedSubjectName =
     selectedSubjectId === "__new__"
@@ -113,6 +118,8 @@ export function CreateTaskButton() {
       // Reset form
       setSelectedSubjectId(subjects[0]?.id ?? "__new__");
       setNewSubjectName("");
+      setManualEntry(false);
+      setManualReg("");
       setPresent(true);
       setDate(getToday());
       setOpen(false);
@@ -171,38 +178,62 @@ export function CreateTaskButton() {
             )}
           </div>
 
-          {/* Student picker — batch filter + registration dropdown */}
+          {/* Student picker */}
           <div className="space-y-1">
-            <Label>Student</Label>
-            <div className="flex gap-2">
-              <select
-                value={selectedBatch}
-                onChange={(e) => setSelectedBatch(e.target.value as Batch)}
-                disabled={isLoading || isFetching}
-                className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+            <div className="flex items-center justify-between">
+              <Label>Student</Label>
+              <button
+                type="button"
+                onClick={() => {
+                  setManualEntry((v) => !v);
+                  setManualReg("");
+                }}
+                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
               >
-                {BATCHES.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-              <select
-                id="student"
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                disabled={isLoading || isFetching || batchStudents.length === 0}
-                className="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-              >
-                {isFetching ? (
-                  <option value="">Loading…</option>
-                ) : batchStudents.length === 0 ? (
-                  <option value="">No students found</option>
-                ) : (
-                  batchStudents.map((s) => (
-                    <option key={s.registration} value={s.id}>{s.registration}</option>
-                  ))
-                )}
-              </select>
+                {manualEntry ? "Select from list" : "Enter manually"}
+              </button>
             </div>
+            {manualEntry ? (
+              <Input
+                id="manual-reg"
+                placeholder="e.g. D/BSE/23/0001"
+                value={manualReg}
+                onChange={(e) => setManualReg(e.target.value)}
+                required
+                disabled={isLoading}
+                autoFocus
+              />
+            ) : (
+              <div className="flex gap-2">
+                <select
+                  value={selectedBatch}
+                  onChange={(e) => setSelectedBatch(e.target.value as Batch)}
+                  disabled={isLoading || isFetching}
+                  className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                >
+                  {BATCHES.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+                <select
+                  id="student"
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                  disabled={isLoading || isFetching || batchStudents.length === 0}
+                  className="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                >
+                  {isFetching ? (
+                    <option value="">Loading…</option>
+                  ) : batchStudents.length === 0 ? (
+                    <option value="">No students found</option>
+                  ) : (
+                    batchStudents.map((s) => (
+                      <option key={s.id} value={s.id}>{s.registration}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <Label htmlFor="date">Date</Label>

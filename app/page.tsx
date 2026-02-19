@@ -2,6 +2,7 @@ import { Attendance } from "@/types/Attendance";
 import { CreateTaskButton } from "@/components/create-task-button";
 import { ModeToggle } from "@/components/ModeToggle";
 import { BatchAttendanceButton } from "@/components/batch-attendance-button";
+import { CadetAttendanceButton } from "@/components/cadet-attendance-button";
 import { AttendanceTable } from "@/components/attendance-table";
 
 const API = "https://69967dd07d178643657454ec.mockapi.io/api/v1/attendance";
@@ -28,6 +29,7 @@ export default async function Home() {
         </div>
         <div className="flex items-center gap-2">
           <ModeToggle />
+          <CadetAttendanceButton />
           <BatchAttendanceButton />
           <CreateTaskButton />
         </div>
