@@ -117,7 +117,7 @@ export function TaskActions({ record }: AttendanceActionsProps) {
             <Pencil className="h-4 w-4" />
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Edit Attendance Record</DialogTitle>
           </DialogHeader>

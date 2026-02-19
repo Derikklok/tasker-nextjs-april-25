@@ -14,9 +14,14 @@ import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
 import { Loader2, PlusCircle } from "lucide-react";
 import { Subject } from "@/types/Subject";
+import { Student } from "@/types/Student";
 
 const ATTENDANCE_API = "https://69967dd07d178643657454ec.mockapi.io/api/v1/attendance";
 const SUBJECTS_API = "https://69967dd07d178643657454ec.mockapi.io/api/v1/subjects";
+const STUDENTS_API = "https://69968b2a7d17864365748134.mockapi.io/api/v1/students";
+
+const BATCHES = ["BSE", "BCS", "BCE"] as const;
+type Batch = (typeof BATCHES)[number];
 
 function getToday() {
   return new Date().toISOString().split("T")[0];
@@ -26,28 +31,49 @@ export function CreateTaskButton() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState("__new__");
   const [newSubjectName, setNewSubjectName] = useState("");
-  const [studentReg, setStudentReg] = useState("");
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<Batch>("BSE");
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+
   const [present, setPresent] = useState(true);
   const [date, setDate] = useState(getToday());
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isFetchingSubjects, setIsFetchingSubjects] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
-  // Fetch subjects & reset date when dialog opens
+  // Fetch subjects + students when dialog opens
   useEffect(() => {
     if (!open) return;
     setDate(getToday());
-    setIsFetchingSubjects(true);
-    fetch(SUBJECTS_API)
-      .then((r) => r.json())
-      .then((data: Subject[]) => {
-        setSubjects(data);
-        if (data.length > 0) setSelectedSubjectId(data[0].id);
+    setIsFetching(true);
+    Promise.all([fetch(SUBJECTS_API), fetch(STUDENTS_API)])
+      .then(([sr, str]) => Promise.all([sr.json(), str.json()]))
+      .then(([subjectData, studentData]) => {
+        const subjects = Array.isArray(subjectData) ? (subjectData as Subject[]) : [];
+        const students = Array.isArray(studentData) ? (studentData as Student[]) : [];
+
+        setSubjects(subjects);
+        if (subjects.length > 0) setSelectedSubjectId(subjects[0].id);
         else setSelectedSubjectId("__new__");
+
+        setStudents(students);
+        const firstInBatch = students.find((s) => s.batch === "BSE");
+        setSelectedStudentId(firstInBatch?.id ?? "");
       })
-      .catch((e) => console.error("Failed to load subjects", e))
-      .finally(() => setIsFetchingSubjects(false));
+      .catch((e) => console.error("Failed to load data", e))
+      .finally(() => setIsFetching(false));
   }, [open]);
+
+  // When batch changes, auto-select first student in that batch
+  useEffect(() => {
+    const first = students.find((s) => s.batch === selectedBatch);
+    setSelectedStudentId(first?.id ?? "");
+  }, [selectedBatch, students]);
+
+  const batchStudents = students.filter((s) => s.batch === selectedBatch);
+  const resolvedStudentReg =
+    students.find((s) => s.id === selectedStudentId)?.registration ?? "";
 
   const resolvedSubjectName =
     selectedSubjectId === "__new__"
@@ -56,7 +82,7 @@ export function CreateTaskButton() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resolvedSubjectName) return;
+    if (!resolvedSubjectName || !resolvedStudentReg) return;
     setIsLoading(true);
 
     try {
@@ -76,7 +102,7 @@ export function CreateTaskButton() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subject: resolvedSubjectName,
-          student_registration: studentReg,
+          student_registration: resolvedStudentReg,
           present: String(present),
           date,
         }),
@@ -85,9 +111,8 @@ export function CreateTaskButton() {
       if (!response.ok) throw new Error("Failed to add record");
 
       // Reset form
-      setSelectedSubjectId("__new__");
+      setSelectedSubjectId(subjects[0]?.id ?? "__new__");
       setNewSubjectName("");
-      setStudentReg("");
       setPresent(true);
       setDate(getToday());
       setOpen(false);
@@ -107,7 +132,7 @@ export function CreateTaskButton() {
           Add Attendance
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Add Attendance Record</DialogTitle>
         </DialogHeader>
@@ -118,11 +143,11 @@ export function CreateTaskButton() {
               id="subject"
               value={selectedSubjectId}
               onChange={(e) => setSelectedSubjectId(e.target.value)}
-              disabled={isLoading || isFetchingSubjects}
+              disabled={isLoading || isFetching}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             >
-              {isFetchingSubjects ? (
-                <option value="">Loading subjects…</option>
+              {isFetching ? (
+                <option value="">Loading…</option>
               ) : (
                 <>
                   {subjects.map((s) => (
@@ -132,7 +157,7 @@ export function CreateTaskButton() {
                 </>
               )}
             </select>
-            {selectedSubjectId === "__new__" && !isFetchingSubjects && (
+            {selectedSubjectId === "__new__" && !isFetching && (
               <Input
                 id="new-subject"
                 placeholder="e.g. Mathematics"
@@ -145,16 +170,39 @@ export function CreateTaskButton() {
               />
             )}
           </div>
+
+          {/* Student picker — batch filter + registration dropdown */}
           <div className="space-y-1">
-            <Label htmlFor="reg">Student Registration No.</Label>
-            <Input
-              id="reg"
-              placeholder="e.g. 2021-CS-001"
-              value={studentReg}
-              onChange={(e) => setStudentReg(e.target.value)}
-              required
-              disabled={isLoading}
-            />
+            <Label>Student</Label>
+            <div className="flex gap-2">
+              <select
+                value={selectedBatch}
+                onChange={(e) => setSelectedBatch(e.target.value as Batch)}
+                disabled={isLoading || isFetching}
+                className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+              >
+                {BATCHES.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+              <select
+                id="student"
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                disabled={isLoading || isFetching || batchStudents.length === 0}
+                className="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+              >
+                {isFetching ? (
+                  <option value="">Loading…</option>
+                ) : batchStudents.length === 0 ? (
+                  <option value="">No students found</option>
+                ) : (
+                  batchStudents.map((s) => (
+                    <option key={s.registration} value={s.id}>{s.registration}</option>
+                  ))
+                )}
+              </select>
+            </div>
           </div>
           <div className="space-y-1">
             <Label htmlFor="date">Date</Label>
@@ -176,7 +224,7 @@ export function CreateTaskButton() {
             />
             <Label htmlFor="present">{present ? "Present" : "Absent"}</Label>
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading || isFetchingSubjects}>
+          <Button type="submit" className="w-full" disabled={isLoading || isFetching}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
