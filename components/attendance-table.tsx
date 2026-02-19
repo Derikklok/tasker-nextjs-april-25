@@ -41,12 +41,15 @@ interface Props {
 
 export function AttendanceTable({ records }: Props) {
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
+  const [activeSubject, setActiveSubject] = useState<string>("All");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const filteredRecords =
-    activeFilter === "All"
-      ? records
-      : records.filter((r) => getBatch(r.student_registration) === activeFilter);
+  // Derive sorted unique subject list from all records
+  const subjects = ["All", ...Array.from(new Set(records.map((r) => r.subject))).sort()];
+
+  const filteredRecords = records
+    .filter((r) => activeFilter === "All" || getBatch(r.student_registration) === activeFilter)
+    .filter((r) => activeSubject === "All" || r.subject === activeSubject);
 
   const handleExportCSV = () => {
     const header = ["Student Reg. No.", "Subject", "Date", "Present"];
@@ -73,7 +76,8 @@ export function AttendanceTable({ records }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `attendance-${activeFilter}-${new Date().toISOString().split("T")[0]}.csv`;
+    const subjectSlug = activeSubject === "All" ? "all-subjects" : activeSubject.replace(/\s+/g, "-");
+    a.download = `attendance-${activeFilter}-${subjectSlug}-${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -111,80 +115,108 @@ export function AttendanceTable({ records }: Props) {
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        {/* Batch filter pills */}
-        <div className="flex items-center gap-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                activeFilter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {f}
-              {f !== "All" && (
-                <span className="ml-1 text-xs opacity-70">
-                  ({records.filter((r) => getBatch(r.student_registration) === f).length})
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Bulk actions */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            disabled={filteredRecords.length === 0}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={filteredRecords.length === 0}
+      <div className="flex flex-col gap-2 mb-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {/* Batch filter pills */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {FILTERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setActiveFilter(f)}
+                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                  activeFilter === f
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete{activeFilter !== "All" ? ` ${activeFilter}` : " All"}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Delete {activeFilter === "All" ? "all" : activeFilter} records?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete {filteredRecords.length} attendance record
-                  {filteredRecords.length !== 1 ? "s" : ""}
-                  {activeFilter !== "All" ? ` for ${activeFilter}` : ""}. This action cannot be
-                  undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteAll} disabled={isDeleting}>
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Deleting…
-                    </>
-                  ) : (
-                    "Delete"
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                {f}
+                {f !== "All" && (
+                  <span className="ml-1 text-xs opacity-70">
+                    ({records.filter((r) => getBatch(r.student_registration) === f).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Bulk actions */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={filteredRecords.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={filteredRecords.length === 0}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete{activeFilter !== "All" ? ` ${activeFilter}` : " All"}
+                  {activeSubject !== "All" ? ` — ${activeSubject}` : ""}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Delete {filteredRecords.length} record{filteredRecords.length !== 1 ? "s" : ""}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete {filteredRecords.length} attendance record
+                    {filteredRecords.length !== 1 ? "s" : ""}
+                    {activeFilter !== "All" ? ` for ${activeFilter}` : ""}
+                    {activeSubject !== "All" ? ` in "${activeSubject}"` : ""}. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAll} disabled={isDeleting}>
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Deleting…
+                      </>
+                    ) : (
+                      "Delete"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
+
+        {/* Subject filter pills */}
+        {subjects.length > 1 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-xs text-muted-foreground mr-1">Subject:</span>
+            {subjects.map((s) => (
+              <button
+                key={s}
+                onClick={() => setActiveSubject(s)}
+                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                  activeSubject === s
+                    ? "bg-secondary text-secondary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {s}
+                {s !== "All" && (
+                  <span className="ml-1 text-xs opacity-70">
+                    ({records.filter((r) => r.subject === s).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -208,7 +240,7 @@ export function AttendanceTable({ records }: Props) {
                 >
                   {records.length === 0
                     ? "No attendance records found. Add one to get started."
-                    : `No records for ${activeFilter}.`}
+                    : `No records for ${activeFilter === "All" ? "" : activeFilter + " "}${activeSubject !== "All" ? `"${activeSubject}"` : ""}`.trim() || "No matching records."}
                 </TableCell>
               </TableRow>
             ) : (
