@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -12,40 +12,88 @@ import {
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, PlusCircle } from "lucide-react";
+import { Subject } from "@/types/Subject";
+
+const ATTENDANCE_API = "https://69967dd07d178643657454ec.mockapi.io/api/v1/attendance";
+const SUBJECTS_API = "https://69967dd07d178643657454ec.mockapi.io/api/v1/subjects";
+
+function getToday() {
+  return new Date().toISOString().split("T")[0];
+}
 
 export function CreateTaskButton() {
-  const [title, setTitle] = useState("");
-  const [completed, setCompleted] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState("__new__");
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [studentReg, setStudentReg] = useState("");
+  const [present, setPresent] = useState(true);
+  const [date, setDate] = useState(getToday());
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingSubjects, setIsFetchingSubjects] = useState(false);
+
+  // Fetch subjects & reset date when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    setDate(getToday());
+    setIsFetchingSubjects(true);
+    fetch(SUBJECTS_API)
+      .then((r) => r.json())
+      .then((data: Subject[]) => {
+        setSubjects(data);
+        if (data.length > 0) setSelectedSubjectId(data[0].id);
+        else setSelectedSubjectId("__new__");
+      })
+      .catch((e) => console.error("Failed to load subjects", e))
+      .finally(() => setIsFetchingSubjects(false));
+  }, [open]);
+
+  const resolvedSubjectName =
+    selectedSubjectId === "__new__"
+      ? newSubjectName.trim()
+      : subjects.find((s) => s.id === selectedSubjectId)?.name ?? "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!resolvedSubjectName) return;
     setIsLoading(true);
-    
+
     try {
-      const response = await fetch("https://67fd29473da09811b174e83b.mockapi.io/api/v1/tasks", {
+      // If it's a new subject, POST it to subjects endpoint first
+      if (selectedSubjectId === "__new__") {
+        const subjectRes = await fetch(SUBJECTS_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: resolvedSubjectName }),
+        });
+        if (!subjectRes.ok) throw new Error("Failed to save subject");
+      }
+
+      // POST attendance record
+      const response = await fetch(ATTENDANCE_API, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title,
-          completed,
+          subject: resolvedSubjectName,
+          student_registration: studentReg,
+          present: String(present),
+          date,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create task");
-      }
+      if (!response.ok) throw new Error("Failed to add record");
 
-      setTitle("");
-      setCompleted(false);
+      // Reset form
+      setSelectedSubjectId("__new__");
+      setNewSubjectName("");
+      setStudentReg("");
+      setPresent(true);
+      setDate(getToday());
       setOpen(false);
       window.location.reload();
     } catch (error) {
-      console.error("Error creating task:", error);
+      console.error("Error adding attendance:", error);
     } finally {
       setIsLoading(false);
     }
@@ -54,37 +102,88 @@ export function CreateTaskButton() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default">Create New Task</Button>
+        <Button variant="default">
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Add Attendance
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create New Task</DialogTitle>
+          <DialogTitle>Add Attendance Record</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            placeholder="Task title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            disabled={isLoading}
-          />
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="completed"
-              checked={completed}
-              onCheckedChange={setCompleted}
+          <div className="space-y-1">
+            <Label htmlFor="subject">Subject</Label>
+            <select
+              id="subject"
+              value={selectedSubjectId}
+              onChange={(e) => setSelectedSubjectId(e.target.value)}
+              disabled={isLoading || isFetchingSubjects}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+            >
+              {isFetchingSubjects ? (
+                <option value="">Loading subjects…</option>
+              ) : (
+                <>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                  <option value="__new__">+ Add new subject…</option>
+                </>
+              )}
+            </select>
+            {selectedSubjectId === "__new__" && !isFetchingSubjects && (
+              <Input
+                id="new-subject"
+                placeholder="e.g. Mathematics"
+                value={newSubjectName}
+                onChange={(e) => setNewSubjectName(e.target.value)}
+                required
+                disabled={isLoading}
+                autoFocus
+                className="mt-2"
+              />
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="reg">Student Registration No.</Label>
+            <Input
+              id="reg"
+              placeholder="e.g. 2021-CS-001"
+              value={studentReg}
+              onChange={(e) => setStudentReg(e.target.value)}
+              required
               disabled={isLoading}
             />
-            <Label htmlFor="completed">Completed</Label>
           </div>
-          <Button type="submit" disabled={isLoading}>
+          <div className="space-y-1">
+            <Label htmlFor="date">Date</Label>
+            <Input
+              id="date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="present"
+              checked={present}
+              onCheckedChange={setPresent}
+              disabled={isLoading}
+            />
+            <Label htmlFor="present">{present ? "Present" : "Absent"}</Label>
+          </div>
+          <Button type="submit" className="w-full" disabled={isLoading || isFetchingSubjects}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
+                Saving...
               </>
             ) : (
-              'Create'
+              "Save Record"
             )}
           </Button>
         </form>
